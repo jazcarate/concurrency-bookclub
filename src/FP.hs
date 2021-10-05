@@ -2,6 +2,7 @@ module FP where
 
 import qualified Control.Concurrent            as C
 import qualified Control.Concurrent.MVar       as M
+import           Data.Foldable                  ( traverse_ )
 import           Data.Functor                   ( void )
 import qualified Data.Monoid
 import           Data.String                    ( fromString )
@@ -32,27 +33,33 @@ future :: IO () -> IO ()
 future = void . C.forkIO
 
 deref :: Promise a -> IO a
-deref =  M.readMVar . unPromise
+deref = M.readMVar . unPromise
 
 deliver :: Promise a -> a -> IO ()
 deliver = M.putMVar . unPromise
 
-main :: IO ()
+{- main :: IO ()
 main = do
   meaningOfLife <- promise
   future $ do
     mol <- deref meaningOfLife
     putStrLn $ "The meaning of life is: " <> show mol
-  deliver meaningOfLife 42
+  deliver meaningOfLife 42 -}
 
-{- main' :: IO ()
-main' = do
+main :: IO ()
+main = do
   let port = 3000
-  snippets <- mkSnippets
+  future $ do
+    traverse_
+        (\p' -> do
+          p <- p'
+          deref p
+        )
+      $ repeat promise
   putStrLn $ "🚀  http://localhost:" <> show port <> "/"
-  Warp.run port $ app snippets
+  Warp.run port $ app 3
 
-app :: Integer -> Wai.Application
+app :: a -> Wai.Application
 app _ req respond = respond $ case Wai.pathInfo req of
   ["yay"] -> yay
   x       -> index x
@@ -67,4 +74,3 @@ index x = Wai.responseLBS status200 [("Content-Type", "text/html")] $ mconcat
   , "!</p>"
   , "<p><a href='/yay'>yay</a></p>\n"
   ]
- -}
