@@ -1,12 +1,18 @@
-module FP where
+module FP
+  ( server
+  ) where
 
 import qualified Control.Concurrent            as C
 import qualified Control.Concurrent.MVar       as M
+import           Control.Monad                  ( join )
+import qualified Data.ByteString.Lazy          as B
 import           Data.Foldable                  ( traverse_ )
 import           Data.Functor                   ( void )
-import qualified Data.Monoid
 import           Data.String                    ( fromString )
 import qualified Data.Text                     as T
+import           Data.Text.Encoding            as T
+import           Data.Text.IO                  as T
+import qualified Data.Text.Read                as Read
 import           GHC.IO.Unsafe                  ( unsafePerformIO )
 import           Network.HTTP.Types             ( status200 )
 import qualified Network.Wai                   as Wai
@@ -38,39 +44,20 @@ deref = M.readMVar . unPromise
 deliver :: Promise a -> a -> IO ()
 deliver = M.putMVar . unPromise
 
-{- main :: IO ()
-main = do
-  meaningOfLife <- promise
-  future $ do
-    mol <- deref meaningOfLife
-    putStrLn $ "The meaning of life is: " <> show mol
-  deliver meaningOfLife 42 -}
-
-main :: IO ()
-main = do
+server :: IO ()
+server = do
   let port = 3000
+  snippets <- sequence $ replicate 10 promise
   future $ do
-    traverse_
-        (\p' -> do
-          p <- p'
-          deref p
-        )
-      $ repeat promise
-  putStrLn $ "🚀  http://localhost:" <> show port <> "/"
-  Warp.run port $ app 3
+    traverse_ ((T.putStrLn =<<) . deref) snippets
+  T.putStrLn $ "🚀  http://localhost:" <> (T.pack $ show port) <> "/"
+  Warp.run port $ app snippets
 
-app :: a -> Wai.Application
-app _ req respond = respond $ case Wai.pathInfo req of
-  ["yay"] -> yay
-  x       -> index x
-
-yay :: Wai.Response
-yay = Wai.responseLBS status200 [("Content-Type", "text/plain")] "yay"
-
-index :: [T.Text] -> Wai.Response
-index x = Wai.responseLBS status200 [("Content-Type", "text/html")] $ mconcat
-  [ "<p>Hello from "
-  , fromString $ show x
-  , "!</p>"
-  , "<p><a href='/yay'>yay</a></p>\n"
-  ]
+app :: [Promise T.Text] -> Wai.Application
+app snippets req respond = case Wai.pathInfo req of
+  ["snippet", path] -> case Read.decimal path of
+    Right (num, _) -> do
+      bodyBS <- B.toStrict <$> Wai.strictRequestBody req
+      let body = T.decodeUtf8 bodyBS
+      deliver (snippets !! (num - 1)) body
+      respond $ Wai.responseBuilder status200 mempty mempty

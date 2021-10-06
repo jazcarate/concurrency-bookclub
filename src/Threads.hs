@@ -1,5 +1,5 @@
 module Threads
-  ( main
+  ( philosophers
   ) where
 
 import           Control.Concurrent             ( forkIO
@@ -30,8 +30,8 @@ size = 5
 rotate :: Int -> [a] -> [a]
 rotate = drop <> take
 
-main :: IO ()
-main = do
+philosophers :: IO ()
+philosophers = do
   Sys.hSetBuffering Sys.stdout Sys.LineBuffering
   chops <- sequence $ replicate size Lock.new
   let philosophers =
