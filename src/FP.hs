@@ -44,6 +44,31 @@ deref = M.readMVar . unPromise
 deliver :: Promise a -> a -> IO ()
 deliver = M.putMVar . unPromise
 
+requestBody :: Wai.Request -> IO T.Text
+requestBody req = T.decodeUtf8 <$> B.toStrict <$> Wai.strictRequestBody req
+
+ok :: Wai.Response
+ok = Wai.responseBuilder status200 mempty "Ok"
+
+{-
+(def snippets (repeatedly promise))
+
+(future 
+  (doseq [snippet (map deref snippets)]
+    (println snippet)))
+
+(defn accept-snippet [n text]
+  (deliver (nth snippets n) text))
+
+(defroutes app-routes
+  (PUT "/snippet/:n" [n :as {:keys [body]}]
+    (accept-snippet (edn/read-string n) (slurp body))
+    (response "OK")))
+
+(defn -main [& args]
+  (run-jetty (site app-routes) {:port 3000}))
+-}
+
 server :: IO ()
 server = do
   let port = 3000
@@ -53,11 +78,11 @@ server = do
   T.putStrLn $ "🚀  http://localhost:" <> (T.pack $ show port) <> "/"
   Warp.run port $ app snippets
 
+
 app :: [Promise T.Text] -> Wai.Application
 app snippets req respond = case Wai.pathInfo req of
   ["snippet", path] -> case Read.decimal path of
     Right (num, _) -> do
-      bodyBS <- B.toStrict <$> Wai.strictRequestBody req
-      let body = T.decodeUtf8 bodyBS
-      deliver (snippets !! (num - 1)) body
-      respond $ Wai.responseBuilder status200 mempty mempty
+      body <- requestBody req
+      deliver (snippets !! num ) body
+      respond $ ok
