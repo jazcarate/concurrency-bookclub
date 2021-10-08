@@ -74,7 +74,7 @@ server = do
   let port = 3000
   snippets <- sequence $ replicate 10 promise
   future $ do
-    traverse_ ((T.putStrLn =<<) . deref) snippets
+    traverse_ (T.putStrLn =<<) (fmap deref snippets)
   T.putStrLn $ "🚀  http://localhost:" <> (T.pack $ show port) <> "/"
   Warp.run port $ app snippets
 
